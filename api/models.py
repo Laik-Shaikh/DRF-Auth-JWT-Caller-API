@@ -19,3 +19,8 @@ class ContactList(models.Model):
 
     def __str__(self):
         return f"{self.name}: {self.phone_number}"
+
+
+class SpamNumber(models.Model):
+    phone_number = models.CharField(max_length=15)
+    spamCount = models.PositiveIntegerField(default=1)

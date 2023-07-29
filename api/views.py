@@ -1,12 +1,14 @@
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.response import Response
-from . models import RegisterUser
-from . serializers import UserSerializer, LoginSerializer
+from . models import RegisterUser, SpamNumber
+from . serializers import UserSerializer, LoginSerializer, SpamNumberSerializer
 from django.contrib.auth.hashers import make_password, check_password
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import IsAuthenticated
+import json
+from django.db.models import Q
 
 
 
@@ -83,3 +85,61 @@ def getRegisteredUser(request):
         users = RegisterUser.objects.all()
         serialize = UserSerializer(users, many = True)
         return Response(serialize.data, status=200)
+
+@api_view(['POST'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def markNumberSpam(request):
+    data = request.data
+    serializer = SpamNumberSerializer(data=data)
+
+    if serializer.is_valid():
+        data = serializer.data
+        if SpamNumber.objects.filter(phone_number = data['phone_number']).exists():
+            data = SpamNumber.objects.get(phone_number = data['phone_number'])
+            data.spamCount = data.spamCount + 1
+            data.save(update_fields=['spamCount'])
+            serializer = SpamNumberSerializer(data) 
+            return Response({
+                'Success' : True,
+                'data': serializer.data
+            }, status=status.HTTP_202_ACCEPTED)
+        else:
+            print(data['phone_number'])
+            markedSpam = SpamNumber.objects.create(phone_number = data['phone_number'])
+            return Response({
+                'Success' : True,
+                'data': markedSpam
+            }, status=status.HTTP_201_CREATED)
+
+    return Response({
+        'Success' : False,
+        'Message' : serializer.errors
+    }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def getUsersUsingPhoneNumberOrName(request):
+    param = request.GET.get('search', '')
+    # print(type())
+    param = json.loads(param)
+    print(param)
+    try:
+        # users = RegisterUser.objects.filter(phone_number__icontains = param) | RegisterUser.objects.filter(name__contains = param)
+        users = RegisterUser.objects.filter(Q(phone_number__contains = param) | Q(name__contains = param)).values()
+        print(users.count())
+
+        serialize = UserSerializer(users, many = True)
+        
+    except RegisterUser.DoesNotExist:
+        return Response({
+            'Success' : False,
+            'Message' : "No Records Found"
+        })
+
+    return Response({
+        'Success' : True,
+        'data' : serialize.data
+    }, status=status.HTTP_200_OK)

@@ -22,3 +22,6 @@ class LoginSerializer(serializers.Serializer):
     phone_number = serializers.CharField(max_length=15)
     password = serializers.CharField(max_length=500)
 
+class SpamNumberSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(max_length = 15)
+    spamCount = serializers.IntegerField(required=False)
